@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Hasher — Custom Audiences</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0c0c0f;
+    --surface: #16161a;
+    --surface-2: #1e1e24;
+    --border: #2a2a32;
+    --text: #e8e6e3;
+    --text-dim: #8b8991;
+    --accent: #6c63ff;
+    --accent-glow: rgba(108, 99, 255, 0.15);
+    --green: #34d399;
+    --green-glow: rgba(52, 211, 153, 0.12);
+    --orange: #fb923c;
+    --red: #f87171;
+    --radius: 12px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 1.5rem;
+    line-height: 1.6;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 680px;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.25rem;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-bottom: 2.5rem;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--surface);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .drop-zone-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    opacity: 0.6;
+  }
+
+  .drop-zone-text {
+    font-size: 0.95rem;
+    color: var(--text-dim);
+  }
+
+  .drop-zone-text strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* Column config */
+  .config-section {
+    margin-top: 2rem;
+    display: none;
+  }
+
+  .config-section.visible { display: block; }
+
+  .section-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+
+  .file-info {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+  }
+
+  .file-info .name { font-family: var(--mono); font-size: 0.85rem; }
+  .file-info .meta { color: var(--text-dim); font-size: 0.8rem; }
+
+  .btn-reset {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: var(--font);
+    transition: all 0.2s;
+  }
+
+  .btn-reset:hover { border-color: var(--red); color: var(--red); }
+
+  .columns-grid {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .col-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.88rem;
+    transition: border-color 0.2s;
+  }
+
+  .col-row.phone { border-left: 3px solid var(--orange); }
+  .col-row.email { border-left: 3px solid var(--accent); }
+
+  .col-name {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    flex: 1;
+  }
+
+  .col-type {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .col-type button {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: var(--font);
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .col-type button.active-phone {
+    background: rgba(251, 146, 60, 0.15);
+    border-color: var(--orange);
+    color: var(--orange);
+  }
+
+  .col-type button.active-email {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .col-type button:hover:not(.active-phone):not(.active-email) {
+    border-color: var(--text-dim);
+    color: var(--text);
+  }
+
+  /* Hash button */
+  .actions {
+    margin-top: 2rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .btn-hash {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.8rem 2rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-hash:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-hash:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Preview / Log */
+  .log-section {
+    margin-top: 2rem;
+    display: none;
+  }
+
+  .log-section.visible { display: block; }
+
+  .log-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.8;
+    max-height: 320px;
+    overflow-y: auto;
+    color: var(--text-dim);
+  }
+
+  .log-box .phone-line { color: var(--orange); }
+  .log-box .email-line { color: var(--accent); }
+  .log-box .success { color: var(--green); font-weight: 500; }
+  .log-box .info { color: var(--text-dim); }
+
+  /* Done state */
+  .done-banner {
+    margin-top: 1.5rem;
+    background: var(--green-glow);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    display: none;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .done-banner.visible { display: flex; }
+
+  .done-banner .check {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .done-banner .done-text {
+    font-size: 0.9rem;
+    color: var(--green);
+    font-weight: 500;
+  }
+
+  .done-banner .done-sub {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 0.15rem;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  .footer strong { color: var(--text); font-weight: 500; }
+
+  /* Scrollbar */
+  .log-box::-webkit-scrollbar { width: 6px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 500px) {
+    body { padding: 2rem 1rem; }
+    h1 { font-size: 1.4rem; }
+    .drop-zone { padding: 2rem 1.25rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>LP Data - CSV Hasher</h1>
+  <p class="subtitle">SHA-256 hashing for Customer List/Custom Audiences. Runs entirely on local.</p>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <span class="drop-zone-icon">&#128196;</span>
+    <p class="drop-zone-text">Drop your <strong>.csv</strong> here or click to browse</p>
+    <input type="file" id="fileInput" accept=".csv">
+  </div>
+
+  <!-- Config -->
+  <div class="config-section" id="configSection">
+    <div class="file-info">
+      <div>
+        <div class="name" id="fileName"></div>
+        <div class="meta" id="fileMeta"></div>
+      </div>
+      <button class="btn-reset" id="btnReset">Clear</button>
+    </div>
+
+    <div class="section-label">Column Types <span style="font-weight:400; text-transform:none; letter-spacing:0;">(click to toggle)</span></div>
+    <div class="columns-grid" id="columnsGrid"></div>
+
+    <div class="actions">
+      <button class="btn-hash" id="btnHash">Hash &amp; Download</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log-section" id="logSection">
+    <div class="section-label">Log</div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <!-- Done -->
+  <div class="done-banner" id="doneBanner">
+    <span class="check">&#10003;</span>
+    <div>
+      <div class="done-text" id="doneText"></div>
+      <div class="done-sub">File is ready!</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>Note:</strong> Phone akan di-strip menjadi digits-only (e.g. +628xx&thinsp;→&thinsp;628xx, 08xx&thinsp;→&thinsp;628xx).
+    Email dan kolom lainnya akan diubah menjadi lowercase (huruf nonkapital) dan di-trim sebelum hashing
+  </div>
+</div>
+
+<script>
+// ── State ──
+let csvData = null;       // { headers: [], rows: [[]] }
+let columnTypes = {};     // { colName: 'phone' | 'email' }
+
+const PHONE_KEYWORDS = ['phone', 'hp', 'mobile', 'telp', 'msisdn', 'wa', 'whatsapp', 'nomor'];
+const EMAIL_KEYWORDS = ['email', 'mail'];
+
+// ── DOM refs ──
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const configSection = document.getElementById('configSection');
+const fileName = document.getElementById('fileName');
+const fileMeta = document.getElementById('fileMeta');
+const columnsGrid = document.getElementById('columnsGrid');
+const btnHash = document.getElementById('btnHash');
+const btnReset = document.getElementById('btnReset');
+const logSection = document.getElementById('logSection');
+const logBox = document.getElementById('logBox');
+const doneBanner = document.getElementById('doneBanner');
+const doneText = document.getElementById('doneText');
+
+// ── File handling ──
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+btnReset.addEventListener('click', () => {
+  csvData = null;
+  columnTypes = {};
+  fileInput.value = '';
+  configSection.classList.remove('visible');
+  logSection.classList.remove('visible');
+  doneBanner.classList.remove('visible');
+  dropZone.style.display = '';
+});
+
+function handleFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith('.csv')) {
+    alert('Please select a .csv file');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    parseCSV(e.target.result, file.name);
+  };
+  reader.readAsText(file);
+}
+
+function parseCSV(text, name) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { alert('CSV needs at least a header row and one data row'); return; }
+
+  // Simple CSV parse (handles quoted fields)
+  const parseLine = line => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+      else { current += ch; }
+    }
+    result.push(current);
+    return result;
+  };
+
+  const headers = parseLine(lines[0]);
+  const rows = lines.slice(1).map(parseLine);
+
+  csvData = { headers, rows, name };
+
+  // Auto-detect column types
+  columnTypes = {};
+  headers.forEach(h => {
+    const lower = h.toLowerCase();
+    if (PHONE_KEYWORDS.some(k => lower.includes(k))) columnTypes[h] = 'phone';
+    else if (EMAIL_KEYWORDS.some(k => lower.includes(k))) columnTypes[h] = 'email';
+    else columnTypes[h] = 'email'; // default: trim + lowercase + hash
+  });
+
+  renderConfig();
+}
+
+function renderConfig() {
+  dropZone.style.display = 'none';
+  configSection.classList.add('visible');
+  logSection.classList.remove('visible');
+  doneBanner.classList.remove('visible');
+
+  fileName.textContent = csvData.name;
+  fileMeta.textContent = `${csvData.rows.length} rows · ${csvData.headers.length} columns`;
+
+  columnsGrid.innerHTML = '';
+  csvData.headers.forEach(h => {
+    const type = columnTypes[h];
+    const row = document.createElement('div');
+    row.className = `col-row ${type}`;
+
+    const sample = csvData.rows[0]?.[csvData.headers.indexOf(h)] || '';
+    const sampleTrunc = sample.length > 30 ? sample.slice(0, 30) + '…' : sample;
+
+    row.innerHTML = `
+      <span class="col-name">${h} <span style="color:var(--text-dim);font-weight:400;font-size:0.75rem;">${sampleTrunc}</span></span>
+      <div class="col-type">
+        <button data-col="${h}" data-type="phone" class="${type === 'phone' ? 'active-phone' : ''}">Phone</button>
+        <button data-col="${h}" data-type="email" class="${type === 'email' ? 'active-email' : ''}">Email / Other</button>
+      </div>
+    `;
+    columnsGrid.appendChild(row);
+  });
+
+  columnsGrid.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const col = btn.dataset.col;
+      const type = btn.dataset.type;
+      columnTypes[col] = type;
+      renderConfig();
+    });
+  });
+}
+
+// ── Hashing ──
+btnHash.addEventListener('click', processAndDownload);
+
+async function sha256(text) {
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizePhone(value) {
+  if (!value || !value.trim()) return '';
+  let digits = value.replace(/\D/g, '');
+  // Convert local Indonesian 08xx to 628xx
+  if (digits.startsWith('0') && digits.length >= 10) {
+    digits = '62' + digits.slice(1);
+  }
+  return digits;
+}
+
+function normalizeEmail(value) {
+  if (!value || !value.trim()) return '';
+  return value.trim().toLowerCase();
+}
+
+function log(text, cls = 'info') {
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = text;
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+async function processAndDownload() {
+  if (!csvData) return;
+  btnHash.disabled = true;
+  logBox.innerHTML = '';
+  logSection.classList.add('visible');
+  doneBanner.classList.remove('visible');
+
+  const { headers, rows } = csvData;
+
+  // Log column detection
+  headers.forEach(h => {
+    const type = columnTypes[h];
+    if (type === 'phone') log(`📱 ${h} → phone (digits-only + country code)`, 'phone-line');
+    else log(`✉ ${h} → email/other (lowercase + trim)`, 'email-line');
+  });
+
+  log('');
+
+  // Show sample from first row
+  log('— Sample hashes for double-checking —');
+  for (let c = 0; c < headers.length; c++) {
+    const type = columnTypes[headers[c]];
+    const cls = type === 'phone' ? 'phone-line' : 'email-line';
+    let raw = '';
+    let sampleRow = -1;
+    for (let r = 0; r < rows.length; r++) {
+      if (rows[r]?.[c] && rows[r][c].trim()) { raw = rows[r][c]; sampleRow = r + 1; break; }
+    }
+    if (!raw) {
+      log(`  ${headers[c]}: (all empty)`, 'info');
+      continue;
+    }
+    const normalized = type === 'phone' ? normalizePhone(raw) : normalizeEmail(raw);
+    const hashed = normalized ? await sha256(normalized) : '';
+    log(`  ${headers[c]} [row ${sampleRow}]: ${raw} → ${normalized} → ${hashed.slice(0, 16)}…`, cls);
+  }
+
+  log('');
+  log(`Hashing ${rows.length} rows…`);
+
+  // Process all rows
+  const hashedRows = [];
+  for (let r = 0; r < rows.length; r++) {
+    const newRow = [];
+    for (let c = 0; c < headers.length; c++) {
+      const raw = rows[r]?.[c] || '';
+      const type = columnTypes[headers[c]];
+      const normalized = type === 'phone' ? normalizePhone(raw) : normalizeEmail(raw);
+      if (normalized) {
+        newRow.push(await sha256(normalized));
+      } else {
+        newRow.push('');
+      }
+    }
+    hashedRows.push(newRow);
+
+    // Progress every 1000 rows
+    if ((r + 1) % 1000 === 0) {
+      log(`  …${r + 1} / ${rows.length}`, 'info');
+      await new Promise(r => setTimeout(r, 0)); // yield to UI
+    }
+  }
+
+  log('');
+  log(`✓ Done — ${rows.length} rows hashed`, 'success');
+
+  // Build CSV and download
+  const csvLines = [headers.join(',')];
+  for (const row of hashedRows) {
+    csvLines.push(row.map(v => v.includes(',') ? `"${v}"` : v).join(','));
+  }
+  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const baseName = csvData.name.replace(/\.csv$/i, '');
+  a.href = url;
+  a.download = `${baseName}_hashed.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  doneText.textContent = `${baseName}_hashed.csv — ${rows.length} rows`;
+  doneBanner.classList.add('visible');
+  btnHash.disabled = false;
+}
+</script>
+</body>
+</html>
