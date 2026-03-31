@@ -291,41 +291,18 @@
     margin-top: 3rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--border);
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     color: var(--text-dim);
     line-height: 1.7;
   }
 
   .footer strong { color: var(--text); font-weight: 500; }
 
-  /* Platform toggle */
+  /* Format toggle */
   .platform-toggle {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .platform-btn {
-    flex: 1;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.7rem 1rem;
-    cursor: pointer;
-    font-family: var(--font);
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-dim);
-    text-align: center;
-    transition: all 0.2s;
-  }
-
-  .platform-btn:hover { border-color: var(--text-dim); color: var(--text); }
-
-  .platform-btn.active {
-    background: var(--accent-glow);
-    border-color: var(--accent);
-    color: var(--accent);
+    margin-bottom: 0.25rem;
   }
 
   .platform-hint {
@@ -338,6 +315,39 @@
     margin-bottom: 1.5rem;
     font-family: var(--mono);
   }
+
+  .format-check {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .format-check:hover { border-color: var(--text-dim); color: var(--text); }
+
+  .format-check:has(input:checked) {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .format-check input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .format-label { font-weight: 500; }
 
   /* Scrollbar */
   .log-box::-webkit-scrollbar { width: 6px; }
@@ -373,12 +383,16 @@
       <button class="btn-reset" id="btnReset">Clear</button>
     </div>
 
-    <div class="section-label">Platform</div>
+    <div class="section-label">Phone Format</div>
     <div class="platform-toggle">
-      <button class="platform-btn active" data-platform="meta" id="btnMeta">Meta</button>
-      <button class="platform-btn" data-platform="google" id="btnGoogle">Google Ads</button>
+      <label class="format-check" id="checkDigits">
+        <input type="checkbox" checked> <span class="format-label"><span style="font-family:var(--mono)">628xx</span> digits only</span>
+      </label>
+      <label class="format-check" id="checkPlus">
+        <input type="checkbox"> <span class="format-label"><span style="font-family:var(--mono)">+628xx</span> with + prefix</span>
+      </label>
     </div>
-    <div class="platform-hint" id="platformHint">Phone format: 628xx (digits only, no +)</div>
+    <div class="platform-hint" id="platformHint">Phone format: 628xx (digits only)</div>
 
     <div class="section-label">Column Types <span style="font-weight:400; text-transform:none; letter-spacing:0;">(click to toggle)</span></div>
     <div class="columns-grid" id="columnsGrid"></div>
@@ -404,19 +418,15 @@
   </div>
 
   <div class="footer">
-    <strong>Note:</strong> Phone akan di-strip menjadi digits-only untuk Meta (e.g. +628xx&thinsp;→&thinsp;628xx, 08xx&thinsp;→&thinsp;628xx)
-    atau dengan prefix + untuk Google Ads (e.g. 08xx&thinsp;→&thinsp;+628xx).
-    Header kolom akan disesuaikan per platform: <span style="font-family:var(--mono);font-size:0.75rem;">phone</span>, <span style="font-family:var(--mono);font-size:0.75rem;">email</span> untuk Meta
-    dan <span style="font-family:var(--mono);font-size:0.75rem;">Phone</span>, <span style="font-family:var(--mono);font-size:0.75rem;">Email</span> untuk Google Ads.
-    Email dan kolom lainnya akan diubah menjadi lowercase (huruf nonkapital) dan di-trim sebelum hashing.
+    <strong>Note:</strong> Phone akan diformat dengan kode negara '62' (e.g. 08xx&thinsp;→&thinsp;628xx atau 08xx&thinsp;→&thinsp;+628xx, tergantung opsi yang dipilih).
+    Email dan kolom lainnya akan diubah menjadi lowercase (huruf nonkapital) dan di-trim sebelum hashing
   </div>
 </div>
 
 <script>
 // ── State ──
 let csvData = null;       // { headers: [], rows: [[]] }
-let columnTypes = {};     // { colName: 'phone' | 'email' }
-let platform = 'meta';    // 'meta' | 'google'
+let columnTypes = {};     // { colName: 'phone' | 'email' | 'other' }
 
 const PHONE_KEYWORDS = ['phone', 'hp', 'mobile', 'telp', 'msisdn', 'wa', 'whatsapp', 'nomor'];
 const EMAIL_KEYWORDS = ['email', 'mail'];
@@ -434,21 +444,25 @@ const logSection = document.getElementById('logSection');
 const logBox = document.getElementById('logBox');
 const doneBanner = document.getElementById('doneBanner');
 const doneText = document.getElementById('doneText');
-const btnMeta = document.getElementById('btnMeta');
-const btnGoogle = document.getElementById('btnGoogle');
+const checkDigits = document.querySelector('#checkDigits input');
+const checkPlus = document.querySelector('#checkPlus input');
 const platformHint = document.getElementById('platformHint');
 
-// ── Platform toggle ──
-function setPlatform(p) {
-  platform = p;
-  btnMeta.classList.toggle('active', p === 'meta');
-  btnGoogle.classList.toggle('active', p === 'google');
-  platformHint.textContent = p === 'meta'
-    ? 'Phone format: 628xx (digits only, no +)'
-    : 'Phone format: +628xx (E.164 with + sign)';
+// ── Format checkboxes ──
+function getFormats() {
+  return { digits: checkDigits.checked, plus: checkPlus.checked };
 }
-btnMeta.addEventListener('click', () => setPlatform('meta'));
-btnGoogle.addEventListener('click', () => setPlatform('google'));
+
+function updateHint() {
+  const f = getFormats();
+  if (f.digits && f.plus) platformHint.textContent = '\'Phone\' column akan digandakan: 1× digits (628xx) + 1× with \'+\' (+628xx)';
+  else if (f.digits) platformHint.textContent = 'Phone format: 628xx (digits only)';
+  else if (f.plus) platformHint.textContent = 'Phone format: +628xx (with \'+\' prefix)';
+  else platformHint.textContent = 'Pilih minimal satu phone format';
+}
+
+checkDigits.addEventListener('change', updateHint);
+checkPlus.addEventListener('change', updateHint);
 
 // ── File handling ──
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -508,7 +522,7 @@ function parseCSV(text, name) {
     const lower = h.toLowerCase();
     if (PHONE_KEYWORDS.some(k => lower.includes(k))) columnTypes[h] = 'phone';
     else if (EMAIL_KEYWORDS.some(k => lower.includes(k))) columnTypes[h] = 'email';
-    else columnTypes[h] = 'email'; // default: trim + lowercase + hash
+    else columnTypes[h] = 'other'; // default: trim + lowercase + hash, keep original header
   });
 
   renderConfig();
@@ -527,7 +541,7 @@ function renderConfig() {
   csvData.headers.forEach(h => {
     const type = columnTypes[h];
     const row = document.createElement('div');
-    row.className = `col-row ${type}`;
+    row.className = `col-row ${type === 'phone' ? 'phone' : 'email'}`;
 
     const sample = csvData.rows[0]?.[csvData.headers.indexOf(h)] || '';
     const sampleTrunc = sample.length > 30 ? sample.slice(0, 30) + '…' : sample;
@@ -536,7 +550,8 @@ function renderConfig() {
       <span class="col-name">${h} <span style="color:var(--text-dim);font-weight:400;font-size:0.75rem;">${sampleTrunc}</span></span>
       <div class="col-type">
         <button data-col="${h}" data-type="phone" class="${type === 'phone' ? 'active-phone' : ''}">Phone</button>
-        <button data-col="${h}" data-type="email" class="${type === 'email' ? 'active-email' : ''}">Email / Other</button>
+        <button data-col="${h}" data-type="email" class="${type === 'email' ? 'active-email' : ''}">Email</button>
+        <button data-col="${h}" data-type="other" class="${type === 'other' ? 'active-email' : ''}">Other</button>
       </div>
     `;
     columnsGrid.appendChild(row);
@@ -562,15 +577,14 @@ async function sha256(text) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function normalizePhone(value) {
+function normalizePhone(value, addPlus) {
   if (!value || !value.trim()) return '';
   let digits = value.replace(/\D/g, '');
   // Convert local Indonesian 08xx to 628xx
   if (digits.startsWith('0') && digits.length >= 10) {
     digits = '62' + digits.slice(1);
   }
-  // Google requires + prefix, Meta wants digits only
-  return platform === 'google' ? '+' + digits : digits;
+  return addPlus ? '+' + digits : digits;
 }
 
 function normalizeEmail(value) {
@@ -588,97 +602,89 @@ function log(text, cls = 'info') {
 
 async function processAndDownload() {
   if (!csvData) return;
+  const formats = getFormats();
+  if (!formats.digits && !formats.plus) { alert('Select at least one phone format'); return; }
+
   btnHash.disabled = true;
   logBox.innerHTML = '';
   logSection.classList.add('visible');
   doneBanner.classList.remove('visible');
 
   const { headers, rows } = csvData;
+  const bothFormats = formats.digits && formats.plus;
 
-  // Log column detection
-  const phoneLabel = platform === 'google' ? 'phone (E.164 with +)' : 'phone (digits-only)';
+  const outputPlan = [];
+  headers.forEach((h, i) => {
+    const type = columnTypes[h];
+    if (type === 'phone') {
+      if (formats.digits) outputPlan.push({ src: i, type, addPlus: false, header: 'Phone' });
+      if (formats.plus) outputPlan.push({ src: i, type, addPlus: true, header: 'Phone' });
+    } else {
+      outputPlan.push({ src: i, type, addPlus: false, header: type === 'email' ? 'Email' : h });
+    }
+  });
+
   headers.forEach(h => {
     const type = columnTypes[h];
-    if (type === 'phone') log(`📱 ${h} → ${phoneLabel}`, 'phone-line');
-    else log(`✉ ${h} → email/other (lowercase + trim)`, 'email-line');
+    if (type === 'phone') {
+      const fmts = [formats.digits && '628xx', formats.plus && '+628xx'].filter(Boolean).join(' + ');
+      log(`📱 ${h} → phone (${fmts})${bothFormats ? ' → 2 columns' : ''}`, 'phone-line');
+    } else if (type === 'email') log(`✉ ${h} → email`, 'email-line');
+    else log(`  ${h} → other`, 'info');
   });
 
   log('');
-  log(`Platform: ${platform === 'google' ? 'Google Ads' : 'Meta'}`);
-  log('');
-
-  // Show sample using first non-empty value per column
   log('— Sample hashes —');
-  for (let c = 0; c < headers.length; c++) {
-    const type = columnTypes[headers[c]];
-    const cls = type === 'phone' ? 'phone-line' : 'email-line';
-    // Find first non-empty row for this column
-    let raw = '';
-    let sampleRow = -1;
+  for (const col of outputPlan) {
+    const cls = col.type === 'phone' ? 'phone-line' : 'email-line';
+    let raw = '', sampleRow = -1;
     for (let r = 0; r < rows.length; r++) {
-      if (rows[r]?.[c] && rows[r][c].trim()) { raw = rows[r][c]; sampleRow = r + 1; break; }
+      if (rows[r]?.[col.src]?.trim()) { raw = rows[r][col.src]; sampleRow = r + 1; break; }
     }
-    if (!raw) {
-      log(`  ${headers[c]}: (all empty)`, 'info');
-      continue;
-    }
-    const normalized = type === 'phone' ? normalizePhone(raw) : normalizeEmail(raw);
+    if (!raw) { log(`  ${col.header}: (all empty)`, 'info'); continue; }
+    const normalized = col.type === 'phone' ? normalizePhone(raw, col.addPlus) : normalizeEmail(raw);
     const hashed = normalized ? await sha256(normalized) : '';
-    log(`  ${headers[c]} [row ${sampleRow}]: ${raw} → ${normalized} → ${hashed.slice(0, 16)}…`, cls);
+    const tag = col.type === 'phone' ? (col.addPlus ? ' [+]' : ' [digits]') : '';
+    log(`  ${col.header}${tag} [row ${sampleRow}]: ${raw} → ${normalized} → ${hashed.slice(0, 16)}…`, cls);
   }
 
   log('');
-  log(`Hashing ${rows.length} rows…`);
+  log(`Hashing ${rows.length} rows × ${outputPlan.length} columns…`);
 
-  // Process all rows
   const hashedRows = [];
   for (let r = 0; r < rows.length; r++) {
     const newRow = [];
-    for (let c = 0; c < headers.length; c++) {
-      const raw = rows[r]?.[c] || '';
-      const type = columnTypes[headers[c]];
-      const normalized = type === 'phone' ? normalizePhone(raw) : normalizeEmail(raw);
-      if (normalized) {
-        newRow.push(await sha256(normalized));
-      } else {
-        newRow.push('');
-      }
+    for (const col of outputPlan) {
+      const raw = rows[r]?.[col.src] || '';
+      const normalized = col.type === 'phone' ? normalizePhone(raw, col.addPlus) : normalizeEmail(raw);
+      newRow.push(normalized ? await sha256(normalized) : '');
     }
     hashedRows.push(newRow);
-
-    // Progress every 1000 rows
     if ((r + 1) % 1000 === 0) {
       log(`  …${r + 1} / ${rows.length}`, 'info');
-      await new Promise(r => setTimeout(r, 0)); // yield to UI
+      await new Promise(r => setTimeout(r, 0));
     }
   }
 
   log('');
   log(`✓ Done — ${rows.length} rows hashed`, 'success');
 
-  // Build CSV and download
-  // Rename phone/email headers per platform convention
-  const outputHeaders = headers.map(h => {
-    const type = columnTypes[h];
-    if (type === 'phone') return platform === 'google' ? 'Phone' : 'phone';
-    if (type === 'email') return platform === 'google' ? 'Email' : 'email';
-    return h;
-  });
+  const outputHeaders = outputPlan.map(c => c.header);
   const csvLines = [outputHeaders.join(',')];
   for (const row of hashedRows) {
     csvLines.push(row.map(v => v.includes(',') ? `"${v}"` : v).join(','));
   }
+
   const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const baseName = csvData.name.replace(/\.csv$/i, '');
-  const platformTag = platform === 'google' ? 'google' : 'meta';
   a.href = url;
-  a.download = `${baseName}_hashed_${platformTag}.csv`;
+  a.download = `${baseName}_hashed.csv`;
   a.click();
   URL.revokeObjectURL(url);
 
-  doneText.textContent = `${baseName}_hashed_${platformTag}.csv — ${rows.length} rows`;
+  doneText.textContent = `${baseName}_hashed.csv — ${rows.length} rows, ${outputPlan.length} columns`;
   doneBanner.classList.add('visible');
   btnHash.disabled = false;
 }
